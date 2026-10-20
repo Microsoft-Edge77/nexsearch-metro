@@ -1,171 +1,517 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import { History, Search } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { addToHistory, useSettings } from '@/lib/settings'
+@import 'tailwindcss' source('../');
 
-type Props = {
-  initial?: string
-  size?: 'hero' | 'compact'
-  autoFocus?: boolean
-  type?: 'web' | 'images' | 'news'
-  className?: string
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+body {
+  @apply m-0;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/** Metro text box with live suggestions (from the web) and recent searches. */
-export function SearchBox({
-  initial = '',
-  size = 'compact',
-  autoFocus,
-  type = 'web',
-  className,
-}: Props) {
-  const navigate = useNavigate()
-  const { history } = useSettings()
-  const [value, setValue] = useState(initial)
-  const [open, setOpen] = useState(false)
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [active, setActive] = useState(-1)
-  const listId = useId()
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => setValue(initial), [initial])
-
-  useEffect(() => {
-    const q = value.trim()
-    if (!q || !open) {
-      setSuggestions([])
-      return
-    }
-    const ctrl = new AbortController()
-    const t = setTimeout(() => {
-      fetch(`/api/suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
-        .then((r) => (r.ok ? r.json() : { suggestions: [] }))
-        .then((d: { suggestions: string[] }) =>
-          setSuggestions(d.suggestions ?? []),
-        )
-        .catch(() => {})
-    }, 140)
-    return () => {
-      clearTimeout(t)
-      ctrl.abort()
-    }
-  }, [value, open])
-
-  const items: { text: string; recent: boolean }[] = value.trim()
-    ? suggestions.map((text) => ({ text, recent: false }))
-    : history.slice(0, 6).map((text) => ({ text, recent: true }))
-
-  const go = (q: string) => {
-    const clean = q.trim()
-    if (!clean) return
-    addToHistory(clean)
-    setOpen(false)
-    inputRef.current?.blur()
-    void navigate({ to: '/search', search: { q: clean, type } })
-  }
-
-  const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setActive((a) => Math.min(items.length - 1, a + 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setActive((a) => Math.max(-1, a - 1))
-    } else if (e.key === 'Escape') {
-      setOpen(false)
-    }
-  }
-
-  const hero = size === 'hero'
-  return (
-    <form
-      role="search"
-      className={cn('relative', className)}
-      onSubmit={(e) => {
-        e.preventDefault()
-        go(active >= 0 && items[active] ? items[active].text : value)
-      }}
-    >
-      <div
-        className={cn(
-          'metro-input flex items-stretch',
-          hero ? 'h-14 md:h-16' : 'h-11',
-        )}
-      >
-        <input
-          ref={inputRef}
-          value={value}
-          autoFocus={autoFocus}
-          onChange={(e) => {
-            setValue(e.target.value)
-            setActive(-1)
-            setOpen(true)
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onKeyDown={onKey}
-          placeholder="Rechercher sur le Web"
-          aria-label="Rechercher sur le Web"
-          aria-autocomplete="list"
-          aria-controls={listId}
-          aria-expanded={open && items.length > 0}
-          role="combobox"
-          autoComplete="off"
-          enterKeyHint="search"
-          className={cn(
-            'min-w-0 flex-1 bg-transparent px-4 text-[#111] outline-none placeholder:text-neutral-500',
-            hero ? 'text-lg md:text-xl' : 'text-base',
-          )}
-        />
-        <button
-          type="submit"
-          aria-label="Lancer la recherche"
-          className={cn(
-            'grid shrink-0 place-items-center text-white transition-[filter] hover:brightness-110 active:brightness-90',
-            hero ? 'w-14 md:w-16' : 'w-11',
-          )}
-          style={{ background: 'var(--metro-accent)' }}
-        >
-          <Search className={hero ? 'size-6' : 'size-5'} strokeWidth={2.25} />
-        </button>
-      </div>
-
-      {open && items.length > 0 && (
-        <ul
-          id={listId}
-          role="listbox"
-          className="absolute top-full right-0 left-0 z-40 border-2 border-t-0 border-white bg-white py-1 text-[#111] shadow-2xl"
-        >
-          {items.map((item, i) => (
-            <li key={item.text} role="option" aria-selected={i === active}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => go(item.text)}
-                onMouseEnter={() => setActive(i)}
-                className={cn(
-                  'flex w-full items-center gap-3 px-4 py-2 text-left',
-                  i === active && 'text-white',
-                  hero && 'md:py-2.5 md:text-lg',
-                )}
-                style={
-                  i === active
-                    ? { background: 'var(--metro-accent)' }
-                    : undefined
-                }
-              >
-                {item.recent ? (
-                  <History className="size-4 shrink-0 opacity-60" />
-                ) : (
-                  <Search className="size-4 shrink-0 opacity-60" />
-                )}
-                <span className="truncate">{item.text}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </form>
-  )
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
+
+:root {
+  --font-body:
+    'Segoe UI', 'Segoe UI Variable Text', 'Open Sans', -apple-system,
+    BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --font-heading: var(--font-body);
+  --content-width: 72rem;
+  --reading-width: 42rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.871 0.006 286.286);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0px;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.871 0.006 286.286);
+}
+
+.dark {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.141 0.005 285.823);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.141 0.005 285.823);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.274 0.006 286.033);
+  --input: oklch(0.274 0.006 286.033);
+  --ring: oklch(0.442 0.017 285.786);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.274 0.006 286.033);
+  --sidebar-ring: oklch(0.442 0.017 285.786);
+}
+
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
+  --container-content: var(--content-width);
+  --container-reading: var(--reading-width);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+:root {
+  --metro-accent: #1ba1e2;
+  --metro-bg: #111214;
+  --metro-surface: #1d1e21;
+  --metro-ease: cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+html {
+  background: var(--metro-bg);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--metro-bg);
+}
+
+.font-light-metro {
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+
+.metro-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      ellipse at 15% 0%,
+      color-mix(in oklab, var(--metro-accent) 38%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, #16171a 0%, #0c0d0f 100%);
+}
+.metro-backdrop img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  filter: saturate(1.1);
+}
+.metro-backdrop img[data-loaded='true'] {
+  opacity: 0.32;
+}
+.metro-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(10, 10, 12, 0.85) 0%,
+    rgba(10, 10, 12, 0.35) 70%,
+    rgba(10, 10, 12, 0.6) 100%
+  );
+}
+
+.tile {
+  --tile-bg: var(--metro-accent);
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--tile-bg);
+  color: #fff;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transform: perspective(700px) rotateX(var(--rx, 0deg))
+    rotateY(var(--ry, 0deg)) scale(var(--ts, 1));
+  transition:
+    transform 0.18s var(--metro-ease),
+    outline-color 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tile:hover {
+  outline-color: rgba(255, 255, 255, 0.45);
+}
+.tile:focus-visible {
+  outline-color: #fff;
+}
+.tile[data-pressed='true'] {
+  --ts: 0.97;
+  transition-duration: 0.08s;
+}
+.tile-label {
+  position: absolute;
+  left: 10px;
+  bottom: 7px;
+  right: 10px;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 2;
+}
+.tile-badge {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  font-size: 13px;
+  z-index: 2;
+}
+
+.metro-live-result {
+  position: relative;
+  padding: 16px 18px 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(4px);
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.2s var(--metro-ease), border-color 0.2s ease;
+}
+.metro-live-result:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.search-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.07);
+  padding: 4px 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.metro-tools-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(8px);
+}
+.metro-mini-tile {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.metro-mini-tile:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+.metro-media-card {
+  display: block;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  transition: transform 0.2s var(--metro-ease), border-color 0.2s ease;
+}
+.metro-media-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.live-faces {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.9s var(--metro-ease);
+}
+.live-face {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 100%;
+}
+
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: perspective(700px) translateX(60px) rotateY(-28deg);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(700px) translateX(0) rotateY(0);
+  }
+}
+.tile-enter {
+  animation: tile-in 0.7s var(--metro-ease) backwards;
+}
+
+@keyframes metro-pan {
+  0% { transform: translate3d(-10%, 0, 0) scale(0.98); opacity: 0.4; }
+  100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+}
+@keyframes metro-flip {
+  0% { transform: perspective(800px) rotateY(-90deg); opacity: 0; }
+  100% { transform: perspective(800px) rotateY(0deg); opacity: 1; }
+}
+@keyframes metro-slide {
+  0% { transform: translateX(24px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.metro-panorama {
+  animation: metro-pan 0.7s ease both;
+}
+.metro-flip {
+  animation: metro-flip 0.8s ease both;
+}
+.metro-slide {
+  animation: metro-slide 0.55s ease both;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page-enter {
+  animation: page-in 0.55s var(--metro-ease) both;
+}
+
+.start-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.metro-progress {
+  position: relative;
+  height: 6px;
+  width: 100%;
+  overflow: hidden;
+}
+.metro-progress span {
+  position: absolute;
+  top: 1px;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  background: var(--metro-accent);
+  animation: metro-dot 2.6s infinite;
+}
+.metro-progress.on-accent span {
+  background: #fff;
+}
+.metro-progress span:nth-child(2) { animation-delay: 0.16s; }
+.metro-progress span:nth-child(3) { animation-delay: 0.32s; }
+.metro-progress span:nth-child(4) { animation-delay: 0.48s; }
+.metro-progress span:nth-child(5) { animation-delay: 0.64s; }
+@keyframes metro-dot {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  10% { opacity: 1; }
+  35% { transform: translateX(calc(var(--w, 400px) * 0.45)); }
+  65% { transform: translateX(calc(var(--w, 400px) * 0.55)); }
+  90% { opacity: 1; }
+  100% { transform: translateX(var(--w, 400px)); opacity: 0; }
+}
+
+.pivot-item {
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.38);
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+.pivot-item:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+.pivot-item[data-active='true'] {
+  color: #fff;
+}
+
+.metro-input {
+  background: rgba(255, 255, 255, 0.94);
+  color: #111;
+  border: 2px solid transparent;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.metro-input:focus-within {
+  background: #fff;
+  border-color: var(--metro-accent);
+}
+
+@keyframes caret {
+  50% { opacity: 0; }
+}
+.ai-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  animation: caret 0.9s steps(1) infinite;
+}
+
+.result-title {
+  color: color-mix(in oklab, var(--metro-accent) 55%, white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-enter,
+  .page-enter,
+  .live-faces,
+  .metro-live-result,
+  .metro-media-card,
+  .metro-mini-tile,
+  .tile {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.tile-grid {
+  --gap: 8px;
+  --cell: min(90px, calc((100vw - 2rem - 3 * var(--gap)) / 4));
+  grid-template-columns: repeat(4, var(--cell));
+  grid-auto-rows: var(--cell);
+  gap: var(--gap);
+}
+@media (min-width: 768px) {
+  .tile-grid {
+    --gap: 10px;
+    --cell: 70px;
+    grid-template-columns: repeat(6, var(--cell));
+  }
+}
+@media (min-width: 768px) and (min-height: 860px) {
+  .tile-grid {
+    --cell: 80px;
+  }
+}
+
+.image-wall {
+  --cols: 2;
+  display: grid;
+  gap: 8px;
+  grid-auto-flow: dense;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-auto-rows: calc((100cqw - (var(--cols) - 1) * 8px) / var(--cols));
+}
+@media (min-width: 640px) {
+  .image-wall {
+    --cols: 3;
+  }
+}
+@media (min-width: 768px) {
+  .image-wall {
+    --cols: 4;
+  }
+}
+@media (min-width: 1280px) {
+  .image-wall {
+    --cols: 6;
+  }
+}
+
+path: "src/styles.css","sha":null}]}  

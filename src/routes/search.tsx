@@ -1,593 +1,180 @@
-import { useEffect, useState } from 'react'
-import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import * as Dialog from '@radix-ui/react-dialog'
-import { ArrowLeft, ExternalLink, SearchX, X } from 'lucide-react'
-import { z } from 'zod'
-import { AiOverview } from '@/components/metro/ai-overview'
-import { Logo, SettingsCharm } from '@/components/metro/chrome'
-import { SearchBox } from '@/components/metro/search-box'
-import { MetroProgress, Tile } from '@/components/metro/tiles'
-import { favicon, relativeTime } from '@/lib/format'
-import { useSettings } from '@/lib/settings'
-import type {
-  ImageResult,
-  NewsResult,
-  WebResult,
-  WikiSummary,
-} from '@/server/search'
+import { useEffect, useId, useRef, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { History, Search } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { addToHistory, useSettings } from '@/lib/settings'
 
-const searchSchema = z.object({
-  q: z.string().catch(''),
-  type: z.enum(['web', 'images', 'news']).catch('web'),
-})
-
-type SearchType = z.infer<typeof searchSchema>['type']
-
-export const Route = createFileRoute('/search')({
-  validateSearch: searchSchema,
-  head: ({ match }) => ({
-    meta: [
-      { title: match.search.q ? `${match.search.q} — NexSearch` : 'NexSearch' },
-    ],
-  }),
-  component: SearchPage,
-})
-
-const PIVOTS: { type: SearchType; label: string }[] = [
-  { type: 'web', label: 'web' },
-  { type: 'images', label: 'images' },
-  { type: 'news', label: 'actualités' },
-]
-
-function SearchPage() {
-  const { q, type } = Route.useSearch()
-  const router = useRouter()
-
-  return (
-    <div className="min-h-svh">
-      <div className="metro-backdrop" aria-hidden />
-      <header className="sticky top-0 z-30 border-b border-white/5 bg-[#111214]/92 backdrop-blur-md">
-        <div className="flex items-center gap-3 px-4 py-3 md:gap-5 md:px-10">
-          <button
-            type="button"
-            onClick={() =>
-              window.history.length > 1
-                ? router.history.back()
-                : router.navigate({ to: '/' })
-            }
-            aria-label="Retour"
-            className="grid size-10 shrink-0 place-items-center rounded-full border-2 border-white/70 transition-colors hover:bg-white/10"
-          >
-            <ArrowLeft className="size-5" />
-          </button>
-          <Link
-            to="/"
-            className="hidden shrink-0 md:block"
-            aria-label="Accueil NexSearch"
-          >
-            <Logo size={24} />
-          </Link>
-          <SearchBox
-            key={q}
-            initial={q}
-            type={type}
-            className="min-w-0 flex-1 md:max-w-2xl"
-          />
-          <div className="ml-auto shrink-0">
-            <SettingsCharm compact />
-          </div>
-        </div>
-        <nav
-          className="flex gap-6 overflow-x-auto px-4 pb-2 md:gap-9 md:px-10"
-          aria-label="Type de résultats"
-        >
-          {PIVOTS.map((p) => (
-            <Link
-              key={p.type}
-              to="/search"
-              search={{ q, type: p.type }}
-              data-active={p.type === type}
-              className="pivot-item text-[26px] leading-tight md:text-[34px]"
-            >
-              {p.label}
-            </Link>
-          ))}
-        </nav>
-      </header>
-
-      <main
-        key={`${type}:${q}`}
-        className="page-enter px-4 pt-6 pb-16 md:px-10"
-      >
-        {!q ? (
-          <EmptyState
-            title="Que cherchez-vous ?"
-            text="Saisissez une requête dans la zone de recherche ci-dessus."
-          />
-        ) : type === 'web' ? (
-          <WebTab q={q} />
-        ) : type === 'images' ? (
-          <ImagesTab q={q} />
-        ) : (
-          <NewsTab q={q} />
-        )}
-      </main>
-    </div>
-  )
+type Props = {
+  initial?: string
+  size?: 'hero' | 'compact'
+  autoFocus?: boolean
+  type?: 'web' | 'images' | 'news' | 'videos' | 'shopping' | 'maps'
+  className?: string
 }
 
-/* ───────────── shared fetching ───────────── */
+export function SearchBox({
+  initial = '',
+  size = 'compact',
+  autoFocus,
+  type = 'web',
+  className,
+}: Props) {
+  const navigate = useNavigate()
+  const { history } = useSettings()
+  const [value, setValue] = useState(initial)
+  const [open, setOpen] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [active, setActive] = useState(-1)
+  const listId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
 
-function useJson<T>(url: string | null) {
-  const [state, setState] = useState<{
-    data: T | null
-    error: string | null
-    loading: boolean
-  }>({
-    data: null,
-    error: null,
-    loading: !!url,
-  })
+  useEffect(() => setValue(initial), [initial])
+
   useEffect(() => {
-    if (!url) return
+    const q = value.trim()
+    if (!q || !open) {
+      setSuggestions([])
+      return
+    }
     const ctrl = new AbortController()
-    setState({ data: null, error: null, loading: true })
-    fetch(url, { signal: ctrl.signal })
-      .then(async (r) => {
-        const body = (await r.json()) as T & { error?: string }
-        if (!r.ok) throw new Error(body.error ?? 'La recherche a échoué.')
-        setState({ data: body, error: null, loading: false })
-      })
-      .catch((err: Error) => {
-        if (err.name !== 'AbortError')
-          setState({ data: null, error: err.message, loading: false })
-      })
-    return () => ctrl.abort()
-  }, [url])
-  return state
-}
+    const t = setTimeout(() => {
+      fetch(`/api/suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : { suggestions: [] }))
+        .then((d: { suggestions: string[] }) =>
+          setSuggestions(d.suggestions ?? []),
+        )
+        .catch(() => {})
+    }, 140)
+    return () => {
+      clearTimeout(t)
+      ctrl.abort()
+    }
+  }, [value, open])
 
-function EmptyState({
-  title,
-  text,
-  icon = true,
-}: {
-  title: string
-  text: string
-  icon?: boolean
-}) {
-  return (
-    <div className="max-w-xl py-14">
-      {icon && (
-        <SearchX className="mb-5 size-12 text-white/50" strokeWidth={1.3} />
-      )}
-      <h2 className="font-light-metro text-3xl md:text-4xl">{title}</h2>
-      <p className="mt-3 text-white/60">{text}</p>
-    </div>
-  )
-}
+  const items: { text: string; recent: boolean }[] = value.trim()
+    ? suggestions.map((text) => ({ text, recent: false }))
+    : history.slice(0, 6).map((text) => ({ text, recent: true }))
 
-/* ───────────── web ───────────── */
+  const go = (q: string) => {
+    const clean = q.trim()
+    if (!clean) return
+    addToHistory(clean)
+    setOpen(false)
+    inputRef.current?.blur()
+    void navigate({ to: '/search', search: { q: clean, type } })
+  }
 
-type WebPayload = {
-  results: WebResult[]
-  related: string[]
-  wiki: WikiSummary | null
-  source: string
-}
-
-function WebTab({ q }: { q: string }) {
-  const { aiOverview } = useSettings()
-  const first = useJson<WebPayload>(
-    `/api/search?type=web&q=${encodeURIComponent(q)}`,
-  )
-  const [more, setMore] = useState<WebResult[]>([])
-  const [page, setPage] = useState(1)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [exhausted, setExhausted] = useState(false)
-
-  const loadMore = async () => {
-    setLoadingMore(true)
-    try {
-      const r = await fetch(
-        `/api/search?type=web&page=${page + 1}&q=${encodeURIComponent(q)}`,
-      )
-      const d = (await r.json()) as WebPayload
-      const known = new Set(
-        [...(first.data?.results ?? []), ...more].map((x) => x.url),
-      )
-      const fresh = (d.results ?? []).filter((x) => !known.has(x.url))
-      if (fresh.length === 0) setExhausted(true)
-      setMore((m) => [...m, ...fresh])
-      setPage((p) => p + 1)
-    } catch {
-      setExhausted(true)
-    } finally {
-      setLoadingMore(false)
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActive((a) => Math.min(items.length - 1, a + 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive((a) => Math.max(-1, a - 1))
+    } else if (e.key === 'Escape') {
+      setOpen(false)
     }
   }
 
-  const results = [...(first.data?.results ?? []), ...more]
-  const wiki = first.data?.wiki
-
+  const hero = size === 'hero'
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,680px)_minmax(320px,420px)] lg:gap-14 xl:gap-20">
-      {/* Side panel comes first on phones so the overview is the first thing you see. */}
-      <aside className="order-first space-y-4 lg:order-last lg:sticky lg:top-[150px] lg:max-h-[calc(100svh-170px)] lg:self-start lg:overflow-y-auto">
-        {aiOverview && <AiOverview query={q} />}
-        {wiki && <WikiTile wiki={wiki} />}
-      </aside>
-
-      <section aria-label="Résultats Web" className="min-w-0">
-        {first.loading && <ResultsSkeleton />}
-        {first.error && <EmptyState title="Oups." text={first.error} />}
-        {first.data && results.length === 0 && (
-          <EmptyState
-            title="Aucun résultat"
-            text={`Aucune page ne correspond à « ${q} ». Essayez d'autres mots-clés.`}
-          />
-        )}
-        {results.length > 0 && (
-          <>
-            <ol className="space-y-7">
-              {results.map((r, i) => (
-                <WebResultItem key={r.url} r={r} index={i} />
-              ))}
-            </ol>
-
-            {first.data!.related.length > 0 && (
-              <div className="mt-10">
-                <h2 className="font-light-metro mb-3 text-xl">
-                  Recherches associées
-                </h2>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {first.data!.related.map((rel, i) => (
-                    <Link
-                      key={rel}
-                      to="/search"
-                      search={{ q: rel, type: 'web' }}
-                      className="tile tile-enter flex min-h-[64px] items-end p-3 text-sm font-semibold"
-                      style={{
-                        animationDelay: `${i * 40}ms`,
-                        ['--tile-bg' as string]:
-                          i % 2
-                            ? 'rgba(255,255,255,0.08)'
-                            : 'color-mix(in oklab, var(--metro-accent) 60%, black)',
-                      }}
-                    >
-                      {rel}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-10">
-              {exhausted ? (
-                <p className="text-sm text-white/50">Fin des résultats.</p>
-              ) : loadingMore ? (
-                <MetroProgress className="max-w-sm" />
-              ) : (
-                page < 5 && (
-                  <button
-                    type="button"
-                    onClick={loadMore}
-                    className="border-2 border-white px-6 py-2 text-[15px] transition-colors hover:bg-white hover:text-black"
-                  >
-                    Plus de résultats
-                  </button>
-                )
-              )}
-            </div>
-          </>
-        )}
-      </section>
-    </div>
-  )
-}
-
-function WebResultItem({ r, index }: { r: WebResult; index: number }) {
-  return (
-    <li
-      className="tile-enter"
-      style={{ animationDelay: `${Math.min(index, 10) * 35}ms` }}
+    <form
+      role="search"
+      className={cn('relative', className)}
+      onSubmit={(e) => {
+        e.preventDefault()
+        go(active >= 0 && items[active] ? items[active].text : value)
+      }}
     >
-      <a
-        href={r.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group block"
+      <div
+        className={cn(
+          'metro-input flex items-stretch',
+          hero ? 'h-14 md:h-16' : 'h-11',
+        )}
       >
-        <div className="mb-1.5 flex items-center gap-2.5">
-          <span className="grid size-7 shrink-0 place-items-center bg-white/90">
-            <img
-              src={favicon(r.domain)}
-              alt=""
-              className="size-4"
-              loading="lazy"
-            />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-[13px] text-white/85">
-              {r.domain}
-            </span>
-            <span className="block truncate text-xs text-white/45">
-              {r.displayUrl}
-            </span>
-          </span>
-        </div>
-        <h3 className="result-title text-lg leading-snug group-hover:underline md:text-xl">
-          {r.title}
-        </h3>
-      </a>
-      {r.snippet && (
-        <p className="mt-1 text-[14.5px] leading-relaxed text-white/70">
-          {r.snippet}
-        </p>
-      )}
-    </li>
-  )
-}
-
-function ResultsSkeleton() {
-  return (
-    <div className="space-y-8" aria-label="Chargement des résultats">
-      <MetroProgress className="max-w-md" />
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="animate-pulse space-y-2.5"
-          style={{ animationDelay: `${i * 90}ms` }}
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="size-7 bg-white/10" />
-            <div className="h-3 w-40 bg-white/10" />
-          </div>
-          <div className="h-5 w-4/5 bg-white/15" />
-          <div className="h-3.5 w-full bg-white/8" />
-          <div className="h-3.5 w-2/3 bg-white/8" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function WikiTile({ wiki }: { wiki: WikiSummary }) {
-  return (
-    <a
-      href={wiki.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="tile block"
-      style={{ ['--tile-bg' as string]: '#1f2023' }}
-    >
-      {wiki.thumbnail && (
-        <div className="relative h-44 overflow-hidden bg-white">
-          <img
-            src={wiki.thumbnail}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        </div>
-      )}
-      <div className="p-5">
-        <h2 className="font-light-metro text-[28px] leading-tight">
-          {wiki.title}
-        </h2>
-        {wiki.description && (
-          <p className="mt-0.5 text-sm text-white/55">{wiki.description}</p>
-        )}
-        <p className="mt-3 line-clamp-6 text-sm leading-relaxed text-white/80">
-          {wiki.extract}
-        </p>
-        <span
-          className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold"
-          style={{
-            color: 'color-mix(in oklab, var(--metro-accent) 55%, white)',
+        <input
+          ref={inputRef}
+          value={value}
+          autoFocus={autoFocus}
+          onChange={(e) => {
+            setValue(e.target.value)
+            setActive(-1)
+            setOpen(true)
           }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onKeyDown={onKey}
+          placeholder={
+            type === 'maps'
+              ? 'Rechercher une ville ou une adresse'
+              : type === 'shopping'
+                ? 'Rechercher un produit'
+                : type === 'videos'
+                  ? 'Rechercher une vidéo'
+                  : 'Rechercher sur le Web'
+          }
+          aria-label="Rechercher sur le Web"
+          aria-autocomplete="list"
+          aria-controls={listId}
+          aria-expanded={open && items.length > 0}
+          role="combobox"
+          autoComplete="off"
+          enterKeyHint="search"
+          className={cn(
+            'min-w-0 flex-1 bg-transparent px-4 text-[#111] outline-none placeholder:text-neutral-500',
+            hero ? 'text-lg md:text-xl' : 'text-base',
+          )}
+        />
+        <button
+          type="submit"
+          aria-label="Lancer la recherche"
+          className={cn(
+            'grid shrink-0 place-items-center text-white transition-[filter] hover:brightness-110 active:brightness-90',
+            hero ? 'w-14 md:w-16' : 'w-11',
+          )}
+          style={{ background: 'var(--metro-accent)' }}
         >
-          Wikipédia <ExternalLink className="size-3.5" />
-        </span>
+          <Search className={hero ? 'size-6' : 'size-5'} strokeWidth={2.25} />
+        </button>
       </div>
-    </a>
-  )
-}
 
-/* ───────────── images ───────────── */
-
-function ImagesTab({ q }: { q: string }) {
-  const { data, error, loading } = useJson<{ images: ImageResult[] }>(
-    `/api/search?type=images&q=${encodeURIComponent(q)}`,
-  )
-  const [open, setOpen] = useState<ImageResult | null>(null)
-
-  if (loading)
-    return (
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-        {Array.from({ length: 18 }).map((_, i) => (
-          <div
-            key={i}
-            className="aspect-square animate-pulse bg-white/8"
-            style={{ animationDelay: `${i * 50}ms` }}
-          />
-        ))}
-      </div>
-    )
-  if (error) return <EmptyState title="Oups." text={error} />
-  if (!data || data.images.length === 0)
-    return (
-      <EmptyState
-        title="Aucune image"
-        text={`Aucune image trouvée pour « ${q} ».`}
-      />
-    )
-
-  return (
-    <>
-      <div className="@container">
-        <div className="image-wall">
-          {data.images.map((img, i) => {
-            const big = i % 7 === 0
-            return (
-              <Tile
-                key={img.full + i}
-                size="medium"
-                color="#1f2023"
-                delay={Math.min(i, 18) * 30}
-                onClick={() => setOpen(img)}
-                ariaLabel={img.title || 'Image'}
-                className={
-                  big ? 'col-span-2 row-span-2' : 'col-span-1 row-span-1'
+      {open && items.length > 0 && (
+        <ul
+          id={listId}
+          role="listbox"
+          className="absolute top-full right-0 left-0 z-40 border-2 border-t-0 border-white bg-white py-1 text-[#111] shadow-2xl"
+        >
+          {items.map((item, i) => (
+            <li key={item.text} role="option" aria-selected={i === active}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => go(item.text)}
+                onMouseEnter={() => setActive(i)}
+                className={cn(
+                  'flex w-full items-center gap-3 px-4 py-2 text-left',
+                  i === active && 'text-white',
+                  hero && 'md:py-2.5 md:text-lg',
+                )}
+                style={
+                  i === active
+                    ? { background: 'var(--metro-accent)' }
+                    : undefined
                 }
               >
-                <img
-                  src={img.thumb}
-                  alt={img.title}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  loading="lazy"
-                />
-                <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent p-2 pt-6 text-xs">
-                  {img.domain}
-                </span>
-              </Tile>
-            )
-          })}
-        </div>
-      </div>
-
-      <Dialog.Root open={!!open} onOpenChange={(v) => !v && setOpen(null)}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/90 data-[state=open]:animate-in data-[state=open]:fade-in" />
-          <Dialog.Content className="fixed inset-0 z-50 flex flex-col p-4 text-white outline-none md:p-10 data-[state=open]:animate-in data-[state=open]:zoom-in-95">
-            {open && (
-              <>
-                <div className="mb-4 flex items-start gap-4">
-                  <div className="min-w-0 flex-1">
-                    <Dialog.Title className="font-light-metro line-clamp-2 text-xl md:text-3xl">
-                      {open.title || 'Image'}
-                    </Dialog.Title>
-                    <Dialog.Description className="mt-1 text-sm text-white/60">
-                      {open.domain}
-                    </Dialog.Description>
-                  </div>
-                  <Dialog.Close
-                    aria-label="Fermer"
-                    className="grid size-10 shrink-0 place-items-center rounded-full border-2 border-white/70 hover:bg-white/10"
-                  >
-                    <X className="size-5" />
-                  </Dialog.Close>
-                </div>
-                <div className="grid min-h-0 flex-1 place-items-center">
-                  <img
-                    src={open.full}
-                    alt={open.title}
-                    className="max-h-full max-w-full object-contain"
-                    onError={(e) =>
-                      ((e.currentTarget as HTMLImageElement).src = open.thumb)
-                    }
-                  />
-                </div>
-                <div className="mt-4 flex gap-3">
-                  <a
-                    href={open.page}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold"
-                    style={{ background: 'var(--metro-accent)' }}
-                  >
-                    Visiter la page <ExternalLink className="size-4" />
-                  </a>
-                  <a
-                    href={open.full}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 border-2 border-white px-5 py-1.5 text-sm hover:bg-white hover:text-black"
-                  >
-                    Taille réelle
-                  </a>
-                </div>
-              </>
-            )}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-    </>
+                {item.recent ? (
+                  <History className="size-4 shrink-0 opacity-60" />
+                ) : (
+                  <Search className="size-4 shrink-0 opacity-60" />
+                )}
+                <span className="truncate">{item.text}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </form>
   )
 }
 
-/* ───────────── news ───────────── */
-
-function NewsTab({ q }: { q: string }) {
-  const { data, error, loading } = useJson<{ news: NewsResult[] }>(
-    `/api/search?type=news&q=${encodeURIComponent(q)}`,
-  )
-
-  if (loading)
-    return (
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-40 animate-pulse bg-white/8"
-            style={{ animationDelay: `${i * 60}ms` }}
-          />
-        ))}
-      </div>
-    )
-  if (error) return <EmptyState title="Oups." text={error} />
-  if (!data || data.news.length === 0)
-    return (
-      <EmptyState
-        title="Aucune actualité"
-        text={`Aucun article récent pour « ${q} ».`}
-      />
-    )
-
-  return (
-    <div className="grid grid-flow-dense grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      {data.news.map((n, i) => {
-        const lead = i === 0
-        const tone =
-          i === 0
-            ? 'var(--metro-accent)'
-            : i % 5 === 2
-              ? 'color-mix(in oklab, var(--metro-accent) 55%, black)'
-              : 'rgba(255,255,255,0.07)'
-        return (
-          <Tile
-            key={n.url}
-            size="medium"
-            href={n.url}
-            color={tone}
-            delay={Math.min(i, 16) * 35}
-            className={
-              lead
-                ? 'col-span-1 row-span-1 min-h-[220px] sm:col-span-2 sm:row-span-2'
-                : 'col-span-1 row-span-1 min-h-[150px]'
-            }
-          >
-            <div className="flex h-full flex-col p-4">
-              <div className="flex items-center gap-2 text-xs text-white/75">
-                <span className="truncate font-semibold tracking-wide uppercase">
-                  {n.source}
-                </span>
-                <span className="shrink-0">· {relativeTime(n.published)}</span>
-              </div>
-              <h3
-                className={
-                  lead
-                    ? 'font-light-metro mt-3 text-[26px] leading-tight md:text-[34px]'
-                    : 'mt-2 line-clamp-4 text-[15px] leading-snug font-semibold'
-                }
-              >
-                {n.title}
-              </h3>
-              <ExternalLink className="mt-auto size-4 self-end opacity-60" />
-            </div>
-          </Tile>
-        )
-      })}
-    </div>
-  )
-}
+path: "src/components/metro/search-box.tsx","sha":null,
