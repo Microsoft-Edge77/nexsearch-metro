@@ -1,0 +1,583 @@
+import { useEffect, useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import {
+  BookOpen,
+  Clapperboard,
+  Clock3,
+  Image as ImageIcon,
+  Languages,
+  MapPin,
+  Newspaper,
+  Sparkles,
+  Trophy,
+  TrendingUp,
+  UtensilsCrossed,
+  PlayCircle,
+} from 'lucide-react'
+import { LiveFaces, Tile, TileGroup } from '@/components/metro/tiles'
+import { SearchBox } from '@/components/metro/search-box'
+import { Logo, SettingsCharm } from '@/components/metro/chrome'
+import { describeWeather, relativeTime } from '@/lib/format'
+import { useSettings } from '@/lib/settings'
+import type { TilesData } from '@/server/tiles'
+
+export const Route = createFileRoute('/')({
+  component: Home,
+})
+
+// Tones derived from the accent so the whole screen follows the user's color.
+const TONE = {
+  accent: 'var(--metro-accent)',
+  deep: 'color-mix(in oklab, var(--metro-accent) 72%, black)',
+  deeper: 'color-mix(in oklab, var(--metro-accent) 48%, black)',
+  glass: 'rgba(255,255,255,0.09)',
+  light: 'color-mix(in oklab, var(--metro-accent) 70%, white)',
+}
+
+const AI_PROMPTS = [
+  'Pourquoi le ciel est-il bleu ?',
+  'Comment fonctionne une pompe à chaleur ?',
+  'Quelle est la différence entre un virus et une bactérie ?',
+  'Qui a inventé le Minitel ?',
+]
+
+const searchHref = (q: string, type: 'web' | 'images' | 'news' = 'web') =>
+  `/search?q=${encodeURIComponent(q)}&type=${type}`
+
+function useTiles() {
+  const [data, setData] = useState<TilesData | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = () =>
+      fetch('/api/tiles')
+        .then((r) => (r.ok ? (r.json() as Promise<TilesData>) : null))
+        .then((d) => alive && d && setData(d))
+        .catch(() => {})
+    void load()
+    const t = setInterval(load, 10 * 60 * 1000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [])
+  return data
+}
+
+function useNow() {
+  const [now, setNow] = useState<Date | null>(null)
+  useEffect(() => {
+    setNow(new Date())
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return now
+}
+
+function Home() {
+  const tiles = useTiles()
+  const now = useNow()
+  const { history } = useSettings()
+  const [wallLoaded, setWallLoaded] = useState(false)
+
+  const hour = now?.getHours() ?? 12
+  const greeting = hour < 5 ? 'Bonsoir' : hour < 18 ? 'Bonjour' : 'Bonsoir'
+
+  return (
+    <div className="flex min-h-svh flex-col">
+      <div className="metro-backdrop" aria-hidden>
+        {tiles?.wallpaper && (
+          <img
+            src={tiles.wallpaper.url}
+            alt=""
+            data-loaded={wallLoaded}
+            onLoad={() => setWallLoaded(true)}
+          />
+        )}
+      </div>
+
+      <header className="flex items-center justify-between px-4 pt-5 md:px-12 md:pt-8 lg:px-16">
+        <Logo size={30} />
+        <div className="flex items-center gap-4">
+          <div className="hidden text-right sm:block" suppressHydrationWarning>
+            <div className="font-light-metro text-2xl leading-none tabular-nums">
+              {now
+                ? now.toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : ' '}
+            </div>
+            <div className="mt-1 text-xs text-white/60 capitalize">
+              {now
+                ? now.toLocaleDateString('fr-FR', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                  })
+                : ' '}
+            </div>
+          </div>
+          <SettingsCharm />
+        </div>
+      </header>
+
+      <main className="page-enter flex flex-1 flex-col">
+        <section className="px-4 pt-10 pb-8 md:px-12 md:pt-14 md:pb-10 lg:px-16">
+          <h1
+            className="font-light-metro text-[44px] leading-[1.02] md:text-[72px]"
+            suppressHydrationWarning
+          >
+            {greeting}.
+            <span className="block text-white/55">Que cherchez-vous ?</span>
+          </h1>
+          <SearchBox size="hero" autoFocus className="mt-7 max-w-2xl md:mt-9" />
+          <p className="mt-3 flex items-center gap-2 text-sm text-white/55">
+            <Sparkles className="size-4" style={{ color: TONE.light }} />
+            Résultats Web en direct, accompagnés d'un aperçu IA avec ses
+            sources.
+          </p>
+        </section>
+
+        <div className="start-scroller flex flex-col gap-9 px-4 pb-14 md:flex-row md:gap-14 md:overflow-x-auto md:px-12 md:pb-10 lg:px-16">
+          <TileGroup title="Aujourd'hui">
+            <WeatherTile data={tiles} />
+            <Tile
+              size="medium"
+              color={TONE.deep}
+              delay={60}
+              href={searchHref('heure dans le monde')}
+              ariaLabel="Horloge"
+            >
+              <LiveFaces
+                interval={6000}
+                faces={[
+                  <div
+                    key="t"
+                    className="flex h-full flex-col justify-between p-3"
+                    suppressHydrationWarning
+                  >
+                    <Clock3 className="size-6 opacity-80" />
+                    <div className="font-light-metro text-[38px] leading-none tabular-nums">
+                      {now?.toLocaleTimeString('fr-FR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }) ?? ''}
+                    </div>
+                  </div>,
+                  <div
+                    key="d"
+                    className="flex h-full flex-col p-3 pb-7"
+                    suppressHydrationWarning
+                  >
+                    <div className="font-light-metro text-[52px] leading-none">
+                      {now?.getDate() ?? ''}
+                    </div>
+                    <div className="mt-auto text-sm capitalize">
+                      {now?.toLocaleDateString('fr-FR', { weekday: 'long' }) ??
+                        ''}
+                    </div>
+                  </div>,
+                ]}
+              />
+            </Tile>
+            <WallpaperTile data={tiles} />
+            <Tile
+              size="medium"
+              color={TONE.accent}
+              delay={180}
+              href={searchHref(AI_PROMPTS[0])}
+              label="Aperçu IA"
+            >
+              <Sparkles className="absolute top-3 left-3 size-6" />
+              <LiveFaces
+                interval={5200}
+                faces={AI_PROMPTS.map((p) => (
+                  <div
+                    key={p}
+                    className="flex h-full items-center p-3 pt-10 pb-8 text-[15px] leading-snug font-semibold"
+                  >
+                    « {p} »
+                  </div>
+                ))}
+              />
+            </Tile>
+            <Tile
+              size="medium"
+              color={TONE.glass}
+              delay={220}
+              href={searchHref('paysages', 'images')}
+              label="Images"
+            >
+              <ImageIcon
+                className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2"
+                strokeWidth={1.4}
+              />
+            </Tile>
+          </TileGroup>
+
+          <TileGroup title="À la une">
+            <NewsTiles data={tiles} />
+          </TileGroup>
+
+          <TileGroup title="Explorer">
+            <Tile
+              size="wide"
+              color={TONE.deeper}
+              delay={120}
+              href="https://fr.wikipedia.org"
+              label="Wikipédia"
+            >
+              <div className="flex h-full items-center gap-4 p-4 pb-8">
+                <BookOpen className="size-10 shrink-0" strokeWidth={1.4} />
+                <p className="text-sm leading-snug text-white/85">
+                  L'encyclopédie libre — résumés intégrés à vos résultats.
+                </p>
+              </div>
+            </Tile>
+            <Tile
+              size="medium"
+              color={TONE.accent}
+              delay={160}
+              href="https://www.openstreetmap.org"
+              label="Cartes"
+            >
+              <MapPin
+                className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2"
+                strokeWidth={1.4}
+              />
+            </Tile>
+            <Tile
+              size="medium"
+              color={TONE.glass}
+              delay={200}
+              href={searchHref('traduction français anglais')}
+              label="Traduire"
+            >
+              <Languages
+                className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2"
+                strokeWidth={1.4}
+              />
+            </Tile>
+            <Tile
+              size="small"
+              color={TONE.deep}
+              delay={240}
+              href="https://www.youtube.com"
+              ariaLabel="YouTube"
+            >
+              <PlayCircle
+                className="absolute top-1/2 left-1/2 size-7 -translate-x-1/2 -translate-y-1/2"
+                strokeWidth={1.5}
+              />
+            </Tile>
+            <Tile
+              size="small"
+              color={TONE.light}
+              delay={260}
+              href={searchHref('résultats sport', 'news')}
+              ariaLabel="Sport"
+            >
+              <Trophy
+                className="absolute top-1/2 left-1/2 size-7 -translate-x-1/2 -translate-y-1/2"
+                strokeWidth={1.5}
+              />
+            </Tile>
+            <Tile
+              size="medium"
+              color={TONE.deeper}
+              delay={280}
+              href={searchHref('films à l’affiche cette semaine')}
+              label="Cinéma"
+            >
+              <Clapperboard
+                className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2"
+                strokeWidth={1.4}
+              />
+            </Tile>
+            <Tile
+              size="small"
+              color={TONE.glass}
+              delay={300}
+              href={searchHref('recette facile du jour')}
+              ariaLabel="Recettes"
+            >
+              <UtensilsCrossed
+                className="absolute top-1/2 left-1/2 size-7 -translate-x-1/2 -translate-y-1/2"
+                strokeWidth={1.5}
+              />
+            </Tile>
+            <Tile
+              size="small"
+              color={TONE.accent}
+              delay={320}
+              href={searchHref('actualité', 'news')}
+              ariaLabel="Actualités"
+            >
+              <Newspaper
+                className="absolute top-1/2 left-1/2 size-7 -translate-x-1/2 -translate-y-1/2"
+                strokeWidth={1.5}
+              />
+            </Tile>
+          </TileGroup>
+
+          <TileGroup title="Récemment">
+            {history.length === 0 ? (
+              <Tile
+                size="wide"
+                color={TONE.glass}
+                delay={140}
+                label="Historique"
+              >
+                <div className="flex h-full flex-col justify-center p-4 pb-8 text-sm leading-snug text-white/75">
+                  Vos dernières recherches apparaîtront ici, en tuiles. Elles
+                  restent sur cet appareil.
+                </div>
+              </Tile>
+            ) : (
+              history.slice(0, 6).map((q, i) => (
+                <Tile
+                  key={q}
+                  size={i === 0 ? 'wide' : 'medium'}
+                  color={i === 0 ? TONE.accent : i % 2 ? TONE.glass : TONE.deep}
+                  delay={140 + i * 40}
+                  href={searchHref(q)}
+                  label="Rechercher à nouveau"
+                >
+                  <div
+                    className={
+                      i === 0
+                        ? 'font-light-metro line-clamp-2 p-4 text-[28px] leading-tight'
+                        : 'line-clamp-3 p-3 text-[15px] leading-snug font-semibold'
+                    }
+                  >
+                    {q}
+                  </div>
+                </Tile>
+              ))
+            )}
+          </TileGroup>
+        </div>
+      </main>
+
+      <footer className="px-4 pb-6 text-xs text-white/40 md:px-12 lg:px-16">
+        {tiles?.wallpaper?.copyright && (
+          <span className="mr-3">
+            Fond du jour : {tiles.wallpaper.copyright}
+          </span>
+        )}
+        <span>NexSearch · Météo Open-Meteo</span>
+      </footer>
+    </div>
+  )
+}
+
+function SkeletonFace() {
+  return <div className="h-full w-full animate-pulse bg-white/5" />
+}
+
+function WeatherTile({ data }: { data: TilesData | null }) {
+  const w = data?.weather
+  if (!w) {
+    return (
+      <Tile size="wide" color={TONE.accent} delay={0} label="Météo">
+        {data ? (
+          <div className="p-4 text-sm text-white/80">
+            Météo indisponible pour le moment.
+          </div>
+        ) : (
+          <SkeletonFace />
+        )}
+      </Tile>
+    )
+  }
+  const now = describeWeather(w.code)
+  return (
+    <Tile
+      size="wide"
+      color={TONE.accent}
+      delay={0}
+      href={searchHref(`météo ${w.city}`)}
+      label={`Météo · ${w.city}`}
+    >
+      <LiveFaces
+        interval={5500}
+        faces={[
+          <div key="now" className="flex h-full items-center gap-4 p-4 pb-8">
+            <now.Icon className="size-14 shrink-0" strokeWidth={1.2} />
+            <div>
+              <div className="font-light-metro text-[54px] leading-none">
+                {w.temperature}°
+              </div>
+              <div className="mt-1 text-sm text-white/85">
+                {now.label} · {w.min}° / {w.max}°
+              </div>
+            </div>
+          </div>,
+          <div key="fc" className="grid h-full grid-cols-3 gap-2 p-4 pb-8">
+            {w.daily.slice(0, 3).map((d) => {
+              const info = describeWeather(d.code)
+              return (
+                <div
+                  key={d.date}
+                  className="flex flex-col items-start justify-center"
+                >
+                  <div className="text-xs text-white/80 capitalize">
+                    {new Date(d.date + 'T12:00').toLocaleDateString('fr-FR', {
+                      weekday: 'short',
+                    })}
+                  </div>
+                  <info.Icon className="my-1 size-7" strokeWidth={1.4} />
+                  <div className="text-sm">
+                    {d.max}° <span className="text-white/60">{d.min}°</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>,
+        ]}
+      />
+    </Tile>
+  )
+}
+
+function WallpaperTile({ data }: { data: TilesData | null }) {
+  const wp = data?.wallpaper
+  const q = wp?.copyright.split('(')[0].trim() || wp?.title || 'image du jour'
+  return (
+    <Tile
+      size="large"
+      color={TONE.deeper}
+      delay={120}
+      href={wp ? searchHref(q) : undefined}
+      label="Image du jour"
+    >
+      {wp ? (
+        <>
+          <img
+            src={wp.url.replace('_1920x1080', '_800x480')}
+            alt={wp.title}
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="lazy"
+          />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-16 pb-8">
+            <div className="text-lg leading-tight font-semibold">
+              {wp.title}
+            </div>
+            <div className="mt-1 line-clamp-2 text-xs text-white/75">
+              {wp.copyright}
+            </div>
+          </div>
+        </>
+      ) : (
+        <SkeletonFace />
+      )}
+    </Tile>
+  )
+}
+
+function NewsTiles({ data }: { data: TilesData | null }) {
+  const news = data?.headlines ?? []
+  if (!data) {
+    return (
+      <>
+        <Tile size="wide" color={TONE.deep} delay={60}>
+          <SkeletonFace />
+        </Tile>
+        <Tile size="medium" color={TONE.glass} delay={100}>
+          <SkeletonFace />
+        </Tile>
+        <Tile size="medium" color={TONE.glass} delay={140}>
+          <SkeletonFace />
+        </Tile>
+        <Tile size="wide" color={TONE.accent} delay={180}>
+          <SkeletonFace />
+        </Tile>
+      </>
+    )
+  }
+  if (news.length === 0) {
+    return (
+      <Tile
+        size="wide"
+        color={TONE.deep}
+        href={searchHref('actualité', 'news')}
+        label="Actualités"
+      >
+        <div className="p-4 text-sm">Ouvrir les actualités</div>
+      </Tile>
+    )
+  }
+  const lead = news.slice(0, 3)
+  const rest = news.slice(3, 7)
+  const trends = news
+    .map((n) => n.title.split(/[:«»"—–,!?]/)[0].trim())
+    .filter((t) => t.length > 6 && t.length < 48)
+    .slice(0, 5)
+
+  return (
+    <>
+      <Tile
+        size="wide"
+        color={TONE.deep}
+        delay={60}
+        href={searchHref('actualité', 'news')}
+        label="Actualités"
+        badge={<Newspaper className="size-4" />}
+      >
+        <LiveFaces
+          interval={4800}
+          faces={lead.map((n) => (
+            <div key={n.url} className="flex h-full flex-col p-4 pb-8">
+              <div className="text-xs tracking-wide text-white/70 uppercase">
+                {n.source} · {relativeTime(n.published)}
+              </div>
+              <div className="mt-1.5 line-clamp-3 text-[17px] leading-snug font-semibold">
+                {n.title}
+              </div>
+            </div>
+          ))}
+        />
+      </Tile>
+      {rest.map((n, i) => (
+        <Tile
+          key={n.url}
+          size="medium"
+          color={
+            i % 3 === 0 ? TONE.glass : i % 3 === 1 ? TONE.deeper : TONE.accent
+          }
+          delay={100 + i * 40}
+          href={n.url}
+          label={n.source}
+        >
+          <div className="line-clamp-5 p-3 text-[13px] leading-snug font-semibold">
+            {n.title}
+          </div>
+        </Tile>
+      ))}
+      {trends.length > 0 && (
+        <Tile
+          size="wide"
+          color={TONE.accent}
+          delay={260}
+          href={searchHref(trends[0])}
+          label="Tendances"
+          badge={<TrendingUp className="size-4" />}
+        >
+          <LiveFaces
+            interval={4200}
+            faces={trends.map((t, i) => (
+              <div key={t} className="flex h-full items-center gap-4 p-4 pb-8">
+                <span className="font-light-metro text-[48px] leading-none text-white/60">
+                  {i + 1}
+                </span>
+                <span className="line-clamp-2 text-lg leading-tight font-semibold">
+                  {t}
+                </span>
+              </div>
+            ))}
+          />
+        </Tile>
+      )}
+    </>
+  )
+}
