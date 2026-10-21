@@ -60,7 +60,7 @@ export function Logo({
 
 /** Settings charm: slides in from the right edge, like the Windows 8 charms bar. */
 export function SettingsCharm({ compact }: { compact?: boolean }) {
-  const { accent, aiOverview, history } = useSettings()
+  const { accent, aiOverview, history, useBingWallpaper } = useSettings()
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
@@ -78,7 +78,7 @@ export function SettingsCharm({ compact }: { compact?: boolean }) {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:animate-in data-[state=open]:fade-in" />
-        <Dialog.Content className="fixed top-0 right-0 bottom-0 z-50 flex w-full max-w-[360px] flex-col overflow-y-auto bg-[#1d1e21] px-7 py-8 text-white shadow-2xl outline-none data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=open]:duration-300">
+        <Dialog.Content className="fixed top-0 right-0 bottom-0 z-50 flex w-full max-w-[360px] flex-col overflow-y-auto bg-[#1d1e21] px-7 py-8 text-white shadow-2xl outline-none data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right">
           <div className="mb-8 flex items-center justify-between">
             <Dialog.Title className="font-light-metro text-3xl">
               Paramètres
@@ -117,6 +117,18 @@ export function SettingsCharm({ compact }: { compact?: boolean }) {
                 )}
               </button>
             ))}
+          </div>
+
+          <h3 className="mb-1 text-[15px] font-semibold">Image du jour</h3>
+          <p className="mb-4 text-sm text-white/60">
+            Affiche le fond Bing du jour, flouté avec un filtre noir transparent.
+          </p>
+          <div className="mb-9">
+            <MetroToggle
+              label="Image du jour Bing"
+              checked={useBingWallpaper}
+              onChange={(v) => updateSettings({ useBingWallpaper: v })}
+            />
           </div>
 
           <h3 className="mb-1 text-[15px] font-semibold">Aperçu IA</h3>
