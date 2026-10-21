@@ -108,7 +108,6 @@ async function fetchText(
   return res.text()
 }
 
-// Bing wraps outbound links in /ck/a?...&u=a1<base64url>. Unwrap to the real URL.
 function unwrapBingUrl(href: string): string {
   const raw = decodeEntities(href)
   if (!raw.includes('bing.com/ck/a')) return raw
@@ -128,11 +127,48 @@ function unwrapBingUrl(href: string): string {
 function dedupe(results: WebResult[]): WebResult[] {
   const seen = new Set<string>()
   return results.filter((r) => {
-    const key = r.url.replace(/[#?].*$/, '').replace(/\/$/, '')
+    const key = r.url.replace(/[?#].*$/, '').replace(/\/$/, '')
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
+}
+
+function normalizeQuery(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function scoreWebResult(query: string, result: WebResult): number {
+  const q = normalizeQuery(query)
+  const hay = normalizeQuery(`${result.title} ${result.snippet} ${result.domain}`)
+  if (!q) return 0
+  let score = 0
+  if (result.title.toLowerCase().includes(query.toLowerCase())) score += 35
+  const qWords = q.split(' ').filter(Boolean)
+  for (const word of qWords) {
+    if (word.length < 2) continue
+    if (hay.includes(word)) score += 10
+    if (result.title.toLowerCase().includes(word)) score += 6
+  }
+  const exactPhrase = q.includes(' ')
+  if (exactPhrase && hay.includes(q)) score += 25
+  if (result.domain.includes('wikipedia.org')) score += 4
+  if (result.domain.includes('fr.wikipedia.org')) score += 8
+  if (result.domain.includes('github.com')) score += 2
+  return score
+}
+
+function sortByRelevance<T extends WebResult>(query: string, results: T[]): T[] {
+  return [...results]
+    .map((result) => ({ result, score: scoreWebResult(query, result) }))
+    .sort((a, b) => b.score - a.score)
+    .map(({ result }) => result)
 }
 
 async function searchBing(q: string, page: number) {
@@ -239,10 +275,7 @@ async function searchWikipedia(q: string, page: number) {
   return { results, related: [] as string[] }
 }
 
-export async function searchWeb(
-  q: string,
-  page = 1,
-): Promise<WebSearchResponse> {
+export async function searchWeb(q: string, page = 1): Promise<WebSearchResponse> {
   const providers = [
     ['bing', searchBing],
     ['duckduckgo', searchDuckDuckGo],
@@ -251,8 +284,10 @@ export async function searchWeb(
   for (const [source, provider] of providers) {
     try {
       const { results, related } = await provider(q, page)
-      if (results.length > 0)
-        return { query: q, page, source, results, related }
+      if (results.length > 0) {
+        const ranked = sortByRelevance(q, results)
+        return { query: q, page, source, results: ranked, related }
+      }
     } catch (err) {
       console.warn(`[search] ${source} failed:`, (err as Error).message)
     }
@@ -260,10 +295,7 @@ export async function searchWeb(
   return { query: q, page, source: 'wikipedia', results: [], related: [] }
 }
 
-export async function searchImages(
-  q: string,
-  page = 1,
-): Promise<ImageResult[]> {
+export async function searchImages(q: string, page = 1): Promise<ImageResult[]> {
   const first = (page - 1) * 35
   const html = await fetchText(
     `https://www.bing.com/images/async?q=${encodeURIComponent(q)}&first=${first}&count=35&mmasync=1&setlang=fr&cc=FR`,
@@ -321,7 +353,6 @@ export async function searchNews(q: string | null): Promise<NewsResult[]> {
     .filter((i) => i.title && i.link)
     .slice(0, 30)
     .map((i) => {
-      // Google News titles end with " - Source"; keep the title clean.
       const source = i.source || i.title.split(' - ').pop() || ''
       const title =
         source && i.title.endsWith(` - ${source}`)
@@ -393,4 +424,57 @@ export async function wikiSummary(q: string): Promise<WikiSummary | null> {
       `https://fr.wikipedia.org/wiki/${encodeURIComponent(title)}`,
     thumbnail: d.thumbnail?.source ?? null,
   }
+}
+
+export function detectSpecialSearch(query: string): {
+  type: 'calculator' | 'translator' | 'timer'
+  expression?: string
+  language?: 'fr' | 'en'
+  durationSeconds?: number
+} | null {
+  const clean = query.trim().toLowerCase()
+  if (!clean) return null
+
+  const timerMatch = clean.match(
+    /(minuteur|timer|chronomètre|countdown|compte à rebours|compte-a-rebours)/,
+  )
+  const durationDigits = clean.match(/(\d+)\s*(second|seconde|sec|minute|min|heure|h)/)
+  if (timerMatch || durationDigits) {
+    const match = durationDigits?.[0] ?? '1 minute'
+    const units = /minute|min/.test(match) ? 'minute' : /heure|h/.test(match) ? 'heure' : 'seconde'
+    const val = Number(clean.match(/(\d+)/)?.[1] ?? '1')
+    const seconds =
+      units === 'minute' ? val * 60 : units === 'heure' ? val * 60 * 60 : val
+    return { type: 'timer', durationSeconds: Math.max(1, seconds) }
+  }
+
+  const translateMatch = /(traduit|traduire|translate|translator|english|anglais|français|francais)/.test(clean)
+  if (translateMatch) {
+    return { type: 'translator', language: 'fr' }
+  }
+
+  const calcMatch =
+    /(calculatrice|calculator|calc|scientifique|sin\(|cos\(|tan\(|sqrt\(|\bpi\b|\bmod\b|\^|\//.test(clean) ||
+    /^[\d\s\+\-\*\/\(\)\.%\.]+$/.test(clean.replace(/,/g, '.'))
+
+  if (calcMatch && clean.length > 1) {
+    return {
+      type: 'calculator',
+      expression: clean.replace(/x/g, '*').replace(/÷/g, '/').replace(/,/g, '.'),
+    }
+  }
+
+  return null
+}
+
+export function buildSpecialSearchUrl(query: string): string {
+  const special = detectSpecialSearch(query)
+  if (!special) return `/search?q=${encodeURIComponent(query)}&type=web`
+  if (special.type === 'calculator') {
+    return `/search?q=${encodeURIComponent(query)}&type=web`
+  }
+  if (special.type === 'translator') {
+    return `/search?q=${encodeURIComponent(query)}&type=web`
+  }
+  return `/search?q=${encodeURIComponent(query)}&type=web`
 }

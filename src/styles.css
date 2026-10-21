@@ -1,743 +1,316 @@
-import { useEffect, useMemo, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import {
-  BookOpen,
-  Calculator,
-  Clapperboard,
-  Clock3,
-  Image as ImageIcon,
-  Languages,
-  MapPin,
-  Newspaper,
-  Sparkles,
-  Trophy,
-  TrendingUp,
-  UtensilsCrossed,
-  PlayCircle,
-} from 'lucide-react'
-import { LiveFaces, Tile, TileGroup } from '@/components/metro/tiles'
-import { SearchBox } from '@/components/metro/search-box'
-import { Logo, SettingsCharm } from '@/components/metro/chrome'
-import { describeWeather, relativeTime } from '@/lib/format'
-import { useSettings } from '@/lib/settings'
-import type { TilesData } from '@/server/tiles'
+@import 'tailwindcss' source('../');
 
-export const Route = createFileRoute('/')({
-  component: Home,
-})
+@import 'tw-animate-css';
 
-const TONE = {
-  accent: 'var(--metro-accent)',
-  deep: 'color-mix(in oklab, var(--metro-accent) 72%, black)',
-  deeper: 'color-mix(in oklab, var(--metro-accent) 48%, black)',
-  glass: 'rgba(255,255,255,0.09)',
-  light: 'color-mix(in oklab, var(--metro-accent) 70%, white)',
+@custom-variant dark (&:is(.dark *));
+
+body {
+  @apply m-0;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-const AI_PROMPTS = [
-  'Pourquoi le ciel est-il bleu ?',
-  'Comment fonctionne une pompe à chaleur ?',
-  'Quelle est la différence entre un virus et une bactérie ?',
-  'Qui a inventé le Minitel ?',
-]
-
-const searchHref = (
-  q: string,
-  type: 'web' | 'images' | 'news' | 'videos' | 'shopping' | 'maps' = 'web',
-) => `/search?q=${encodeURIComponent(q)}&type=${type}`
-
-function useTiles() {
-  const [data, setData] = useState<TilesData | null>(null)
-  useEffect(() => {
-    let alive = true
-    const load = () =>
-      fetch('/api/tiles')
-        .then((r) => (r.ok ? (r.json() as Promise<TilesData>) : null))
-        .then((d) => alive && d && setData(d))
-        .catch(() => {})
-    void load()
-    const t = setInterval(load, 10 * 60 * 1000)
-    return () => {
-      alive = false
-      clearInterval(t)
-    }
-  }, [])
-  return data
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
-function useNow() {
-  const [now, setNow] = useState<Date | null>(null)
-  useEffect(() => {
-    setNow(new Date())
-    const t = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
-  return now
+:root {
+  --font-body:
+    'Segoe UI', 'Segoe UI Variable Text', 'Open Sans', -apple-system,
+    BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --font-heading: var(--font-body);
+  --content-width: 72rem;
+  --reading-width: 42rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.871 0.006 286.286);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0px;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.871 0.006 286.286);
 }
 
-function Home() {
-  const tiles = useTiles()
-  const now = useNow()
-  const { history } = useSettings()
-  const [wallLoaded, setWallLoaded] = useState(false)
-
-  const hour = now?.getHours() ?? 12
-  const greeting = hour < 5 ? 'Bonsoir' : hour < 18 ? 'Bonjour' : 'Bonsoir'
-
-  return (
-    <div className="flex min-h-svh flex-col">
-      <div className="metro-backdrop" aria-hidden>
-        {tiles?.wallpaper && (
-          <img
-            src={tiles.wallpaper.url}
-            alt=""
-            data-loaded={wallLoaded}
-            onLoad={() => setWallLoaded(true)}
-          />
-        )}
-      </div>
-
-      <header className="flex items-center justify-between px-4 pt-5 md:px-12 md:pt-8 lg:px-16">
-        <Logo size={30} />
-        <div className="flex items-center gap-4">
-          <div className="hidden text-right sm:block" suppressHydrationWarning>
-            <div className="font-light-metro text-2xl leading-none tabular-nums">
-              {now
-                ? now.toLocaleTimeString('fr-FR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                : ' '}
-            </div>
-            <div className="mt-1 text-xs text-white/60 capitalize">
-              {now
-                ? now.toLocaleDateString('fr-FR', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                  })
-                : ' '}
-            </div>
-          </div>
-          <SettingsCharm />
-        </div>
-      </header>
-
-      <main className="page-enter flex flex-1 flex-col">
-        <section className="px-4 pt-10 pb-8 md:px-12 md:pt-14 md:pb-10 lg:px-16">
-          <h1
-            className="font-light-metro text-[44px] leading-[1.02] md:text-[72px]"
-            suppressHydrationWarning
-          >
-            {greeting}.
-            <span className="block text-white/55">Que cherchez-vous ?</span>
-          </h1>
-          <SearchBox size="hero" autoFocus className="mt-7 max-w-2xl md:mt-9" />
-          <p className="mt-3 flex items-center gap-2 text-sm text-white/55">
-            <Sparkles className="size-4" style={{ color: TONE.light }} />
-            Résultats Web en direct, accompagnés d'un aperçu IA avec ses sources.
-          </p>
-        </section>
-
-        <section className="px-4 pb-8 md:px-12 lg:px-16">
-          <MetroToolsPanel />
-        </section>
-
-        <div className="start-scroller flex flex-col gap-9 px-4 pb-14 md:flex-row md:gap-14 md:overflow-x-auto md:px-12 md:pb-10 lg:px-16">
-          <TileGroup title="Aujourd'hui">
-            <WeatherTile data={tiles} />
-            <Tile
-              size="medium"
-              color={TONE.deep}
-              delay={60}
-              href={searchHref('heure dans le monde')}
-              ariaLabel="Horloge"
-            >
-              <LiveFaces
-                interval={6000}
-                faces={[
-                  <div
-                    key="t"
-                    className="flex h-full flex-col justify-between p-3"
-                    suppressHydrationWarning
-                  >
-                    <Clock3 className="size-6 opacity-80" />
-                    <div className="font-light-metro text-[38px] leading-none tabular-nums">
-                      {now?.toLocaleTimeString('fr-FR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      }) ?? ''}
-                    </div>
-                  </div>,
-                  <div
-                    key="d"
-                    className="flex h-full flex-col p-3 pb-7"
-                    suppressHydrationWarning
-                  >
-                    <div className="font-light-metro text-[52px] leading-none">
-                      {now?.getDate() ?? ''}
-                    </div>
-                    <div className="mt-auto text-sm capitalize">
-                      {now?.toLocaleDateString('fr-FR', { weekday: 'long' }) ?? ''}
-                    </div>
-                  </div>,
-                ]}
-              />
-            </Tile>
-            <WallpaperTile data={tiles} />
-            <Tile
-              size="medium"
-              color={TONE.accent}
-              delay={180}
-              href={searchHref(AI_PROMPTS[0])}
-              label="Aperçu IA"
-            >
-              <Sparkles className="absolute top-3 left-3 size-6" />
-              <LiveFaces
-                interval={5200}
-                faces={AI_PROMPTS.map((p) => (
-                  <div
-                    key={p}
-                    className="flex h-full items-center p-3 pt-10 pb-8 text-[15px] leading-snug font-semibold"
-                  >
-                    « {p} »
-                  </div>
-                ))}
-              />
-            </Tile>
-            <Tile
-              size="medium"
-              color={TONE.glass}
-              delay={220}
-              href={searchHref('paysages', 'images')}
-              label="Images"
-            >
-              <ImageIcon
-                className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2"
-                strokeWidth={1.4}
-              />
-            </Tile>
-          </TileGroup>
-
-          <TileGroup title="À la une">
-            <NewsTiles data={tiles} />
-          </TileGroup>
-
-          <TileGroup title="Explorer">
-            <Tile
-              size="wide"
-              color={TONE.deeper}
-              delay={120}
-              href="https://fr.wikipedia.org"
-              label="Wikipédia"
-            >
-              <div className="flex h-full items-center gap-4 p-4 pb-8">
-                <BookOpen className="size-10 shrink-0" strokeWidth={1.4} />
-                <p className="text-sm leading-snug text-white/85">
-                  L'encyclopédie libre — résumés intégrés à vos résultats.
-                </p>
-              </div>
-            </Tile>
-            <Tile
-              size="medium"
-              color={TONE.accent}
-              delay={160}
-              href={searchHref('Paris', 'maps')}
-              label="Cartes"
-            >
-              <MapPin
-                className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2"
-                strokeWidth={1.4}
-              />
-            </Tile>
-            <Tile
-              size="medium"
-              color={TONE.glass}
-              delay={200}
-              href={searchHref('traduction français anglais')}
-              label="Traduire"
-            >
-              <Languages
-                className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2"
-                strokeWidth={1.4}
-              />
-            </Tile>
-            <Tile
-              size="small"
-              color={TONE.deep}
-              delay={240}
-              href={searchHref('playlist de musique', 'videos')}
-              ariaLabel="YouTube"
-            >
-              <PlayCircle
-                className="absolute top-1/2 left-1/2 size-7 -translate-x-1/2 -translate-y-1/2"
-                strokeWidth={1.5}
-              />
-            </Tile>
-            <Tile
-              size="small"
-              color={TONE.light}
-              delay={260}
-              href={searchHref('résultats sport', 'news')}
-              ariaLabel="Sport"
-            >
-              <Trophy
-                className="absolute top-1/2 left-1/2 size-7 -translate-x-1/2 -translate-y-1/2"
-                strokeWidth={1.5}
-              />
-            </Tile>
-            <Tile
-              size="medium"
-              color={TONE.deeper}
-              delay={280}
-              href={searchHref('films à l’affiche cette semaine')}
-              label="Cinéma"
-            >
-              <Clapperboard
-                className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2"
-                strokeWidth={1.4}
-              />
-            </Tile>
-            <Tile
-              size="small"
-              color={TONE.glass}
-              delay={300}
-              href={searchHref('recette facile du jour')}
-              ariaLabel="Recettes"
-            >
-              <UtensilsCrossed
-                className="absolute top-1/2 left-1/2 size-7 -translate-x-1/2 -translate-y-1/2"
-                strokeWidth={1.5}
-              />
-            </Tile>
-            <Tile
-              size="small"
-              color={TONE.accent}
-              delay={320}
-              href={searchHref('actualité', 'news')}
-              ariaLabel="Actualités"
-            >
-              <Newspaper
-                className="absolute top-1/2 left-1/2 size-7 -translate-x-1/2 -translate-y-1/2"
-                strokeWidth={1.5}
-              />
-            </Tile>
-          </TileGroup>
-
-          <TileGroup title="Récemment">
-            {history.length === 0 ? (
-              <Tile
-                size="wide"
-                color={TONE.glass}
-                delay={140}
-                label="Historique"
-              >
-                <div className="flex h-full flex-col justify-center p-4 pb-8 text-sm leading-snug text-white/75">
-                  Vos dernières recherches apparaîtront ici, en tuiles. Elles
-                  restent sur cet appareil.
-                </div>
-              </Tile>
-            ) : (
-              history.slice(0, 6).map((q, i) => (
-                <Tile
-                  key={q}
-                  size={i === 0 ? 'wide' : 'medium'}
-                  color={i === 0 ? TONE.accent : i % 2 ? TONE.glass : TONE.deep}
-                  delay={140 + i * 40}
-                  href={searchHref(q)}
-                  label="Rechercher à nouveau"
-                >
-                  <div
-                    className={
-                      i === 0
-                        ? 'font-light-metro line-clamp-2 p-4 text-[28px] leading-tight'
-                        : 'line-clamp-3 p-3 text-[15px] leading-snug font-semibold'
-                    }
-                  >
-                    {q}
-                  </div>
-                </Tile>
-              ))
-            )}
-          </TileGroup>
-        </div>
-      </main>
-
-      <footer className="px-4 pb-6 text-xs text-white/40 md:px-12 lg:px-16">
-        {tiles?.wallpaper?.copyright && (
-          <span className="mr-3">
-            Fond du jour : {tiles.wallpaper.copyright}
-          </span>
-        )}
-        <span>NexSearch · Météo Open-Meteo</span>
-      </footer>
-    </div>
-  )
+.dark {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.141 0.005 285.823);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.141 0.005 285.823);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.274 0.006 286.033);
+  --input: oklch(0.274 0.006 286.033);
+  --ring: oklch(0.442 0.017 285.786);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.274 0.006 286.033);
+  --sidebar-ring: oklch(0.442 0.017 285.786);
 }
 
-function MetroToolsPanel() {
-  const [translateText, setTranslateText] = useState('Bonjour NexSearch, comment allez-vous ?')
-  const [translation, setTranslation] = useState('Hello NexSearch, how are you?')
-  const [calcValue, setCalcValue] = useState('12*7+5')
-  const [calcResult, setCalcResult] = useState('89')
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
+  --container-content: var(--content-width);
+  --container-reading: var(--reading-width);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
 
-  const handleTranslate = async () => {
-    try {
-      const res = await fetch('https://translate.argosopentech.com/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          q: translateText,
-          source: 'fr',
-          target: 'en',
-          format: 'text',
-        }),
-      })
-      if (!res.ok) throw new Error('translation-failed')
-      const json = (await res.json()) as { translatedText?: string }
-      setTranslation(json.translatedText ?? 'Traduction indisponible.')
-    } catch {
-      setTranslation('Bonjour NexSearch, how are you?')
-    }
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-
-  const handleCalc = () => {
-    try {
-      const expression = calcValue
-        .replace(/×/g, '*')
-        .replace(/÷/g, '/')
-        .replace(/,/g, '.')
-        .replace(/[^0-9+\-*/().%\s]/g, '')
-      const value = Function(`"use strict"; return (${expression})`)()
-      if (Number.isFinite(value)) setCalcResult(String(value))
-      else setCalcResult('Erreur')
-    } catch {
-      setCalcResult('Erreur')
-    }
+  body {
+    @apply bg-background text-foreground;
   }
-
-  const quickTools = useMemo(
-    () => [
-      { label: 'Web', href: searchHref('tendance du web') },
-      { label: 'Images', href: searchHref('paysages', 'images') },
-      { label: 'Vidéos', href: searchHref('démonstration ui', 'videos') },
-      { label: 'Shopping', href: searchHref('meilleures promos', 'shopping') },
-      { label: 'Cartes', href: searchHref('Paris', 'maps') },
-    ],
-    [],
-  )
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-      <div className="metro-tools-panel tile-enter p-4 md:p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-white/65">
-            <Languages className="size-4" />
-            Outils Metro
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {quickTools.map((tool) => (
-              <a
-                key={tool.label}
-                href={tool.href}
-                className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10"
-              >
-                {tool.label}
-              </a>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-none border border-white/10 bg-black/10 p-3">
-            <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-white/65">
-              Traducteur
-            </div>
-            <textarea
-              value={translateText}
-              onChange={(e) => setTranslateText(e.target.value)}
-              className="min-h-[90px] w-full resize-none bg-transparent p-2 text-sm text-white outline-none placeholder:text-white/45"
-              placeholder="Texte à traduire"
-            />
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={handleTranslate}
-                className="border border-white/50 bg-white/10 px-3 py-1.5 text-sm font-semibold hover:bg-white/15"
-              >
-                Traduire
-              </button>
-              <span className="text-xs text-white/60">FR → EN</span>
-            </div>
-            <div className="mt-3 rounded-none border border-white/10 bg-white/5 p-2 text-sm text-white/85">
-              {translation}
-            </div>
-          </div>
-
-          <div className="rounded-none border border-white/10 bg-black/10 p-3">
-            <div className="mb-2 text-[11px] uppercase tracking-[0.18em] text-white/65">
-              Calculatrice
-            </div>
-            <input
-              value={calcValue}
-              onChange={(e) => setCalcValue(e.target.value)}
-              className="w-full bg-transparent p-2 text-base text-white outline-none placeholder:text-white/45"
-              placeholder="12*7+5"
-            />
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={handleCalc}
-                className="flex items-center gap-2 border border-white/50 bg-white/10 px-3 py-1.5 text-sm font-semibold hover:bg-white/15"
-              >
-                <Calculator className="size-4" />
-                Calculer
-              </button>
-              <span className="text-xs text-white/60">Online</span>
-            </div>
-            <div className="mt-3 rounded-none border border-white/10 bg-white/5 p-2 text-lg font-semibold text-white">
-              {calcResult}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="metro-tools-panel tile-enter p-4 md:p-5" style={{ animationDelay: '100ms' }}>
-        <div className="mb-4 text-[11px] uppercase tracking-[0.18em] text-white/65">
-          Accès rapide
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <a href={searchHref('météo Paris')} className="metro-mini-tile">
-            Météo
-          </a>
-          <a href={searchHref('Montmartre', 'maps')} className="metro-mini-tile">
-            Cartes
-          </a>
-          <a href={searchHref('machine learning', 'videos')} className="metro-mini-tile">
-            Vidéos
-          </a>
-          <a href={searchHref('chaussures sport', 'shopping')} className="metro-mini-tile">
-            Shopping
-          </a>
-          <a href={searchHref('actualité tech', 'news')} className="metro-mini-tile">
-            News
-          </a>
-          <a href={searchHref('Python tutoriel')} className="metro-mini-tile">
-            Dev
-          </a>
-        </div>
-      </div>
-    </div>
-  )
 }
 
-function SkeletonFace() {
-  return <div className="h-full w-full animate-pulse bg-white/5" />
+:root {
+  --metro-accent: #1ba1e2;
+  --metro-bg: #111214;
+  --metro-surface: #1d1e21;
+  --metro-ease: cubic-bezier(0.1, 0.9, 0.2, 1);
 }
 
-function WeatherTile({ data }: { data: TilesData | null }) {
-  const w = data?.weather
-  if (!w) {
-    return (
-      <Tile size="wide" color={TONE.accent} delay={0} label="Météo">
-        {data ? (
-          <div className="p-4 text-sm text-white/80">
-            Météo indisponible pour le moment.
-          </div>
-        ) : (
-          <SkeletonFace />
-        )}
-      </Tile>
-    )
-  }
-  const now = describeWeather(w.code)
-  return (
-    <Tile
-      size="wide"
-      color={TONE.accent}
-      delay={0}
-      href={searchHref(`météo ${w.city}`)}
-      label={`Météo · ${w.city}`}
-    >
-      <LiveFaces
-        interval={5500}
-        faces={[
-          <div key="now" className="flex h-full items-center gap-4 p-4 pb-8">
-            <now.Icon className="size-14 shrink-0" strokeWidth={1.2} />
-            <div>
-              <div className="font-light-metro text-[54px] leading-none">
-                {w.temperature}°
-              </div>
-              <div className="mt-1 text-sm text-white/85">
-                {now.label} · {w.min}° / {w.max}°
-              </div>
-            </div>
-          </div>,
-          <div key="fc" className="grid h-full grid-cols-3 gap-2 p-4 pb-8">
-            {w.daily.slice(0, 3).map((d) => {
-              const info = describeWeather(d.code)
-              return (
-                <div
-                  key={d.date}
-                  className="flex flex-col items-start justify-center"
-                >
-                  <div className="text-xs text-white/80 capitalize">
-                    {new Date(d.date + 'T12:00').toLocaleDateString('fr-FR', {
-                      weekday: 'short',
-                    })}
-                  </div>
-                  <info.Icon className="my-1 size-7" strokeWidth={1.4} />
-                  <div className="text-sm">
-                    {d.max}° <span className="text-white/60">{d.min}°</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>,
-        ]}
-      />
-    </Tile>
-  )
+html {
+  background: var(--metro-bg);
+  color-scheme: dark;
 }
 
-function WallpaperTile({ data }: { data: TilesData | null }) {
-  const wp = data?.wallpaper
-  const q = wp?.copyright.split('(')[0].trim() || wp?.title || 'image du jour'
-  return (
-    <Tile
-      size="large"
-      color={TONE.deeper}
-      delay={120}
-      href={wp ? searchHref(q) : undefined}
-      label="Image du jour"
-    >
-      {wp ? (
-        <>
-          <img
-            src={wp.url.replace('_1920x1080', '_800x480')}
-            alt={wp.title}
-            className="absolute inset-0 h-full w-full object-cover"
-            loading="lazy"
-          />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-16 pb-8">
-            <div className="text-lg leading-tight font-semibold">{wp.title}</div>
-            <div className="mt-1 line-clamp-2 text-xs text-white/75">
-              {wp.copyright}
-            </div>
-          </div>
-        </>
-      ) : (
-        <SkeletonFace />
-      )}
-    </Tile>
-  )
+body {
+  background: var(--metro-bg);
 }
 
-function NewsTiles({ data }: { data: TilesData | null }) {
-  const news = data?.headlines ?? []
-  if (!data) {
-    return (
-      <>
-        <Tile size="wide" color={TONE.deep} delay={60}>
-          <SkeletonFace />
-        </Tile>
-        <Tile size="medium" color={TONE.glass} delay={100}>
-          <SkeletonFace />
-        </Tile>
-        <Tile size="medium" color={TONE.glass} delay={140}>
-          <SkeletonFace />
-        </Tile>
-        <Tile size="wide" color={TONE.accent} delay={180}>
-          <SkeletonFace />
-        </Tile>
-      </>
-    )
-  }
-  if (news.length === 0) {
-    return (
-      <Tile
-        size="wide"
-        color={TONE.deep}
-        href={searchHref('actualité', 'news')}
-        label="Actualités"
-      >
-        <div className="p-4 text-sm">Ouvrir les actualités</div>
-      </Tile>
-    )
-  }
-  const lead = news.slice(0, 3)
-  const rest = news.slice(3, 7)
-  const trends = news
-    .map((n) => n.title.split(/[:«»"—–,!?]/)[0].trim())
-    .filter((t) => t.length > 6 && t.length < 48)
-    .slice(0, 5)
-
-  return (
-    <>
-      <Tile
-        size="wide"
-        color={TONE.deep}
-        delay={60}
-        href={searchHref('actualité', 'news')}
-        label="Actualités"
-        badge={<Newspaper className="size-4" />}
-      >
-        <LiveFaces
-          interval={4800}
-          faces={lead.map((n) => (
-            <div key={n.url} className="flex h-full flex-col p-4 pb-8">
-              <div className="text-xs tracking-wide text-white/70 uppercase">
-                {n.source} · {relativeTime(n.published)}
-              </div>
-              <div className="mt-1.5 line-clamp-3 text-[17px] leading-snug font-semibold">
-                {n.title}
-              </div>
-            </div>
-          ))}
-        />
-      </Tile>
-      {rest.map((n, i) => (
-        <Tile
-          key={n.url}
-          size="medium"
-          color={
-            i % 3 === 0 ? TONE.glass : i % 3 === 1 ? TONE.deeper : TONE.accent
-          }
-          delay={100 + i * 40}
-          href={n.url}
-          label={n.source}
-        >
-          <div className="line-clamp-5 p-3 text-[13px] leading-snug font-semibold">
-            {n.title}
-          </div>
-        </Tile>
-      ))}
-      {trends.length > 0 && (
-        <Tile
-          size="wide"
-          color={TONE.accent}
-          delay={260}
-          href={searchHref(trends[0])}
-          label="Tendances"
-          badge={<TrendingUp className="size-4" />}
-        >
-          <LiveFaces
-            interval={4200}
-            faces={trends.map((t, i) => (
-              <div key={t} className="flex h-full items-center gap-4 p-4 pb-8">
-                <span className="font-light-metro text-[48px] leading-none text-white/60">
-                  {i + 1}
-                </span>
-                <span className="line-clamp-2 text-lg leading-tight font-semibold">
-                  {t}
-                </span>
-              </div>
-            ))}
-          />
-        </Tile>
-      )}
-    </>
-  )
+.font-light-metro {
+  font-weight: 300;
+  letter-spacing: -0.01em;
 }
 
-path: "src/routes/index.tsx","sha":null,
+.metro-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      ellipse at 15% 0%,
+      color-mix(in oklab, var(--metro-accent) 38%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, #16171a 0%, #0c0d0f 100%);
+}
+.metro-backdrop img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  filter: saturate(1.1);
+}
+.metro-backdrop img[data-loaded='true'] {
+  opacity: 0.32;
+}
+.metro-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(10, 10, 12, 0.85) 0%,
+    rgba(10, 10, 12, 0.35) 70%,
+    rgba(10, 10, 12, 0.6) 100%
+  );
+}
+
+.tile {
+  --tile-bg: var(--metro-accent);
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--tile-bg);
+  color: #fff;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(var(--ts, 1));
+  transition: transform 0.18s var(--metro-ease), outline-color 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tile:hover { outline-color: rgba(255,255,255,0.45); }
+.tile:focus-visible { outline-color: #fff; }
+.tile[data-pressed='true'] { --ts: 0.97; transition-duration: 0.08s; }
+.tile-label { position:absolute; left:10px; bottom:7px; right:10px; font-size:13px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; z-index:2; }
+.tile-badge { position:absolute; right:10px; bottom:6px; font-size:13px; z-index:2; }
+.metro-live-result {
+  position: relative;
+  padding: 16px 18px 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+  backdrop-filter: blur(4px);
+  transform: translate3d(0,0,0);
+  transition: transform 0.2s var(--metro-ease), border-color 0.2s ease;
+}
+.metro-live-result:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.14); }
+.search-tag { display:inline-flex; align-items:center; border:1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.07); padding:4px 8px; font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color: rgba(255,255,255,0.8); }
+.metro-tools-panel { position:relative; overflow:hidden; border:1px solid rgba(255,255,255,0.12); background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)); backdrop-filter: blur(8px); }
+.metro-mini-tile { display:flex; min-height:88px; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color:white; font-size:13px; font-weight:600; text-align:center; transition: transform 0.15s ease, background 0.15s ease; }
+.metro-mini-tile:hover { background: rgba(255,255,255,0.08); transform: translateY(-1px); }
+.metro-media-card { display:block; overflow:hidden; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); transition: transform 0.2s var(--metro-ease), border-color 0.2s ease; }
+.metro-media-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.18); }
+
+.live-flip-wrap { position: relative; } 
+.live-flip-link { display:block; perspective: 1100px; }
+.live-flip-card {
+  position: relative;
+  height: 220px;
+  transform-style: preserve-3d;
+  transition: transform 0.9s cubic-bezier(.2,.7,.2,1);
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.06);
+}
+.live-flip-card.is-flipped { transform: rotateY(180deg); }
+.live-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+  padding: 18px;
+}
+.live-flip-front { background: linear-gradient(135deg, color-mix(in oklab, var(--metro-accent) 52%, black), rgba(255,255,255,0.08)); }
+.live-flip-back { transform: rotateY(180deg); background: rgba(17,18,20,0.9); }
+.live-flip-back::before { content:''; position:absolute; inset:0; background: linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.72)); }
+
+.live-faces { position:absolute; inset:0; transition: transform 0.9s var(--metro-ease); }
+.live-face { position:absolute; left:0; right:0; height:100%; }
+
+@keyframes tile-in { from { opacity: 0; transform: perspective(700px) translateX(60px) rotateY(-28deg); } to { opacity:1; transform: perspective(700px) translateX(0) rotateY(0); } }
+.tile-enter { animation: tile-in 0.7s var(--metro-ease) backwards; }
+
+@keyframes metro-pan { 0% { transform: translate3d(-10%,0,0) scale(0.98); opacity:0.4; } 100% { transform: translate3d(0,0,0) scale(1); opacity:1; } }
+@keyframes metro-flip { 0% { transform: perspective(800px) rotateY(-90deg); opacity:0; } 100% { transform: perspective(800px) rotateY(0deg); opacity:1; } }
+@keyframes metro-slide { 0% { transform: translateX(24px); opacity:0; } 100% { transform: translateX(0); opacity:1; } }
+.metro-panorama { animation: metro-pan 0.7s ease both; }
+.metro-flip { animation: metro-flip 0.8s ease both; }
+.metro-slide { animation: metro-slide 0.55s ease both; }
+
+@keyframes page-in { from { opacity:0; transform: translateX(40px); } to { opacity:1; transform:none; } }
+.page-enter { animation: page-in 0.55s var(--metro-ease) both; }
+
+.start-scroller { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.25) transparent; }
+
+.metro-progress { position: relative; height: 6px; width: 100%; overflow: hidden; }
+.metro-progress span { position: absolute; top: 1px; left:0; width:4px; height:4px; background: var(--metro-accent); animation: metro-dot 2.6s infinite; }
+.metro-progress.on-accent span { background: #fff; }
+.metro-progress span:nth-child(2) { animation-delay: 0.16s; }
+.metro-progress span:nth-child(3) { animation-delay: 0.32s; }
+.metro-progress span:nth-child(4) { animation-delay: 0.48s; }
+.metro-progress span:nth-child(5) { animation-delay: 0.64s; }
+@keyframes metro-dot { 0% { transform: translateX(0); opacity:0; } 10% { opacity:1; } 35% { transform: translateX(calc(var(--w, 400px) * 0.45)); } 65% { transform: translateX(calc(var(--w, 400px) * 0.55)); } 90% { opacity:1; } 100% { transform: translateX(var(--w, 400px)); opacity:0; } }
+
+.pivot-item { font-weight:300; color: rgba(255,255,255,0.38); transition: color 0.2s; white-space: nowrap; }
+.pivot-item:hover { color: rgba(255,255,255,0.7); }
+.pivot-item[data-active='true'] { color: #fff; }
+
+.metro-input { background: rgba(255,255,255,0.94); color:#111; border:2px solid transparent; transition: background 0.15s, border-color 0.15s; }
+.metro-input:focus-within { background: #fff; border-color: var(--metro-accent); }
+
+@keyframes caret { 50% { opacity:0; } }
+.ai-caret { display:inline-block; width:0.55em; height:1em; margin-left:2px; vertical-align:-0.12em; background:currentColor; animation:caret 0.9s steps(1) infinite; }
+.result-title { color: color-mix(in oklab, var(--metro-accent) 55%, white); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-enter, .page-enter, .live-faces, .metro-live-result, .metro-media-card, .metro-mini-tile, .tile, .live-flip-card { animation: none !important; transition: none !important; }
+}
+
+.tile-grid { --gap: 8px; --cell: min(90px, calc((100vw - 2rem - 3 * var(--gap)) / 4)); grid-template-columns: repeat(4, var(--cell)); grid-auto-rows: var(--cell); gap: var(--gap); }
+@media (min-width: 768px) { .tile-grid { --gap:10px; --cell:70px; grid-template-columns: repeat(6, var(--cell)); } }
+@media (min-width: 768px) and (min-height: 860px) { .tile-grid { --cell:80px; } }
+
+.image-wall { --cols:2; display:grid; gap:8px; grid-auto-flow:dense; grid-template-columns: repeat(var(--cols), minmax(0,1fr)); grid-auto-rows: calc((100cqw - (var(--cols) - 1) * 8px) / var(--cols)); }
+@media (min-width: 640px) { .image-wall { --cols: 3; } }
+@media (min-width: 768px) { .image-wall { --cols: 4; } }
+@media (min-width: 1280px) { .image-wall { --cols: 6; } }
+
