@@ -17,6 +17,13 @@ export const ACCENTS = [
   { name: 'Mauve', value: '#76608a' },
 ] as const
 
+export type WeatherLocation = {
+  city: string
+  latitude: number
+  longitude: number
+  source: 'browser' | 'manual' | 'netlify'
+}
+
 export type CustomTile = {
   id: string
   label: string
@@ -30,6 +37,7 @@ export type Settings = {
   history: string[]
   useBingWallpaper: boolean
   customTiles: CustomTile[]
+  weatherLocation: WeatherLocation | null
 }
 
 const KEY = 'nexsearch:settings'
@@ -39,6 +47,7 @@ const DEFAULTS: Settings = {
   history: [],
   useBingWallpaper: false,
   customTiles: [],
+  weatherLocation: null,
 }
 
 let current: Settings = DEFAULTS
@@ -131,4 +140,4 @@ export function useSettings(): Settings {
 }
 
 // Inlined in <head> so the saved accent is applied before first paint.
-export const accentBootScript = `try{var s=JSON.parse(localStorage.getItem('${KEY}')||'{}');if(s.accent)document.documentElement.style.setProperty('--metro-accent',s.accent);if(typeof s.useBingWallpaper==='boolean')document.documentElement.style.setProperty('--metro-wallpaper-enabled',s.useBingWallpaper?'1':'0')}catch(e){}`
+export const accentBootScript = `try{var s=JSON.parse(localStorage.getItem('${KEY}')||'{}');if(s.accent)document.documentElement.style.setProperty('--metro-accent',s.accent);if(typeof s.useBingWallpaper!=='undefined')document.documentElement.style.setProperty('--metro-wallpaper-enabled',s.useBingWallpaper?'1':'0')}catch(e){}`
